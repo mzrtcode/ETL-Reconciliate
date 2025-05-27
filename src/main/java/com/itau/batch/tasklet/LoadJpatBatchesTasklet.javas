@@ -1,0 +1,116 @@
+package com.itau.batch.tasklet;
+
+import com.itau.jpat.dao.BpBatchDAO;
+import com.mzrt.conciliador.jpat.DTO.BatchStub;
+import com.mzrt.conciliador.jpat.DTO.PaymentStub;
+import com.mzrt.conciliador.jpat.DTO.SwiftMessageStub;
+import com.mzrt.conciliador.jpat.DTO.TransactionStub;
+import com.mzrt.conciliador.jpat.entity.Batch;
+import com.mzrt.conciliador.jpat.repository.BatchRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.StepContribution;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+@RequiredArgsConstructor
+@Component
+@Slf4j
+public class LoadJpatBatchesTasklet implements Tasklet {
+
+    private final Logger log = LoggerFactory.getLogger(LoadJpatBatchesTasklet.class);
+
+    private final BatchRepository batchRepository;
+
+    private final BpBatchDAO batchDAO;
+
+    @Override
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+        ExecutionContext context = chunkContext.getStepContext()
+                .getStepExecution().getJobExecution().getExecutionContext();
+
+        List<SwiftMessageStub> messages = (List<SwiftMessageStub>) context.get("swiftMessages");
+
+        Map<String, BatchStub> batchMap = new HashMap<>();
+
+        if (messages == null) {
+            log.error("ERROR No se encontraron mensajes en el contexto.");
+            return RepeatStatus.FINISHED;
+        }
+
+
+        for (SwiftMessageStub stub : messages) {
+
+            log.info("OK Procesando stub con messageId: " + stub.getMessageId());
+
+            List<PaymentStub> payments = stub.getPayments();
+            if (payments == null) {
+                log.error("ERROR payments es null para messageId: " + stub.getMessageId());
+                continue;
+            }
+
+            PaymentStub firstPayment = payments.get(0);
+            if (firstPayment == null) {
+                log.error("ERROR Primer payment es null para messageId: " + stub.getMessageId());
+                continue;
+            }
+
+            String reference = firstPayment.getReference();
+            if (reference == null) {
+                log.error("ERROR reference es null para messageId: " + stub.getMessageId());
+                continue;
+            }
+
+            log.info("Buscnado batch con customerId: " + stub.getCustomerId() + ", reference: " + reference);
+
+            Optional<Batch> batchOpt = batchRepository.findBatchWithGreaterDateThan(
+                    stub.getCustomerId(),
+                    //todo agregar fecha
+                    LocalDate.now().minusMonths(2).atStartOfDay(), // LocalDate.now().atStartOfDay(),
+                    reference
+            );
+
+            batchOpt.ifPresent(batch -> {
+
+                List<TransactionStub> transactionStubList = batch.getTransactions().stream().map(transaction -> {
+                    TransactionStub transactionStub = new TransactionStub(
+                            transaction.getUuid(),
+                            transaction.getBtrAmount(),
+                            transaction.getBtrSourceAccount(),
+                            transaction.getBank(),
+                            transaction.getBtrReference(),
+                            transaction.getBtrDestAccount(),
+                            transaction.getBtrBankOrigen()
+                    );
+                    return transactionStub;
+                }).toList();
+
+                BatchStub batchStub = new BatchStub(
+                        batch.getUuid(),
+                        batch.getTotalAmount(),
+                        batch.getBatName(),
+                        transactionStubList
+                );
+
+                batchMap.put(stub.getMessageId(), batchStub);
+                log.info("Batch encontrado y agregado para messageId: " + stub.getMessageId());
+            });
+
+        }
+
+
+        context.put("batchMap", batchMap);
+        return RepeatStatus.FINISHED;
+    }
+}

@@ -1,0 +1,71 @@
+package com.itau.batch.tasklet;
+
+import com.mzrt.conciliador.jpat.DTO.BatchStub;
+import com.mzrt.conciliador.jpat.DTO.PaymentStub;
+import com.mzrt.conciliador.jpat.DTO.SwiftMessageStub;
+import com.mzrt.conciliador.jpat.DTO.TransactionStub;
+import com.mzrt.conciliador.jpat.repository.MessageRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.StepContribution;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class ReconcileMessagesTasklet implements Tasklet {
+
+    private final MessageRepository messageRepository;
+
+    private final Logger log = LoggerFactory.getLogger(ReconcileMessagesTasklet.class);
+
+    @Override
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+        ExecutionContext context = chunkContext.getStepContext()
+                .getStepExecution().getJobExecution().getExecutionContext();
+
+        List<SwiftMessageStub> messages = (List<SwiftMessageStub>) context.get("swiftMessages");
+        Map<String, BatchStub> batchMap = (Map<String, BatchStub>) context.get("batchMap");
+
+
+
+        for (SwiftMessageStub stub : messages) {
+            BatchStub batch = batchMap.get(stub.getMessageId());
+            if (batch == null) {
+                continue;
+            }
+
+            boolean conciliado = true;
+            List<TransactionStub> transactions = batch.getTransactions();
+
+            for (PaymentStub payment : stub.getPayments()) {
+                Optional<TransactionStub> match = transactions.stream()
+                        .filter(t -> Objects.equals(t.getBtrReference(), payment.getReference()))
+                        .filter(t -> Objects.equals(t.getBtrAmount(), payment.getAmount()))
+                        .filter(t -> t.getBtrSourceAccount().contains(payment.getPayerAccount()))
+                        .filter(t -> t.getBtrDestAccount().contains(payment.getBeneficiaryAccount()))
+                        .findFirst();
+
+                if (match.isEmpty()) {
+                    conciliado = false;
+                    break;
+                }
+            }
+
+            log.info("Mensaje {} conciliado: {}", stub.getMessageId(), conciliado);
+        }
+
+        return RepeatStatus.FINISHED;
+    }
+}
