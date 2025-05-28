@@ -50,7 +50,7 @@ public class LoadJpatBatchesTasklet implements Tasklet {
             return RepeatStatus.FINISHED;
         }
 
-        Map<String, BpBatchDTO> batchMap = new HashMap<>();
+        Map<String, List<BpBatchDTO>> batchMap = new HashMap<>();
 
         for (AsMonitoringMessageDTO message : messages) {
             processMessage(message, batchMap);
@@ -64,7 +64,7 @@ public class LoadJpatBatchesTasklet implements Tasklet {
         return RepeatStatus.FINISHED;
     }
 
-    private void processMessage(AsMonitoringMessageDTO message, Map<String, BpBatchDTO> batchMap) {
+    private void processMessage(AsMonitoringMessageDTO message, Map<String, List<BpBatchDTO>> batchMap) {
         if (message == null || message.getMessageId() == null) {
             log.warn("Mensaje nulo o sin ID, omitiendo");
             return;
@@ -105,13 +105,11 @@ public class LoadJpatBatchesTasklet implements Tasklet {
                 batches.stream().map(BpBatchDTO::getUuid).toList());
 
 
-
-        batchOpt.ifPresent(batchList -> batchList.forEach(batch -> {
+        batches.forEach(batch -> {
             List<BpBatchTransactionDTO> transactions = batchTransactionDAO.findTransactionByBatchUUID(batch.getUuid());
             batch.setTransactions(transactions);
-            batchMap.put(message.getMessageId(), batch);
-            log.debug("Batch agregado para messageId: {}", message.getMessageId());
-        }));
+        });
+        batchMap.put(message.getMessageId(), batches);
 
     }
 }

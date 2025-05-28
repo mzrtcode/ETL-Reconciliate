@@ -1,8 +1,6 @@
 package com.itau.batch.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,13 +9,15 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @AllArgsConstructor
+@NoArgsConstructor
+@ToString
 public class ReconciliationBatchResult {
 
     private String swiftId;
     private String customerNit;
     private String fileName;
     private LocalDate loadingTime;
-    private LocalDate applicationDateTime;
+    private LocalDate applicationDate;
     private BigDecimal amountSwift;
     private BigDecimal amountJpat;
     private String status;
