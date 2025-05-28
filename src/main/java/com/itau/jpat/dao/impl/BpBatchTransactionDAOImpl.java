@@ -3,6 +3,7 @@ package com.itau.jpat.dao.impl;
 import com.itau.jpat.dao.BpBatchTransactionDAO;
 import com.itau.jpat.dto.BpBatchTransactionDTO;
 import com.itau.utils.Constants;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,6 +14,7 @@ import java.util.List;
 @Repository
 public class BpBatchTransactionDAOImpl implements BpBatchTransactionDAO {
 
+    @Qualifier(Constants.BEAN_JDBC_TEMPLATE_JPAT)
     private final JdbcTemplate jdbcTemplate;
 
     public BpBatchTransactionDAOImpl(JdbcTemplate jdbcTemplate) {

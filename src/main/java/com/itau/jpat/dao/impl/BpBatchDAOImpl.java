@@ -4,6 +4,7 @@ import com.itau.jpat.dao.BpBatchDAO;
 import com.itau.jpat.dto.BpBatchDTO;
 import com.itau.jpat.dto.BpBatchTransactionDTO;
 import com.itau.utils.Constants;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -12,10 +13,12 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 
 import java.util.List;
+import java.util.Optional;
 
 
 @Repository
 public class BpBatchDAOImpl implements BpBatchDAO {
+
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -29,14 +32,19 @@ public class BpBatchDAOImpl implements BpBatchDAO {
                 GROUP BY b.UUID, b.BATNAME
             """;
 
-    public BpBatchDAOImpl(JdbcTemplate jdbcTemplate) {
+    public BpBatchDAOImpl(@Qualifier(Constants.BEAN_JDBC_TEMPLATE_JPAT) JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+        System.out.println("JdbcTemplate inyectado con qualifier: " + jdbcTemplate);
+        // o si usas logger:
+        // log.info("JdbcTemplate inyectado con qualifier: {}", jdbcTemplate);
     }
 
     @Override
-    public List<BpBatchDTO> findAllBatchesByCustomerAndCreationDateAfterAndReference(String customer, LocalDateTime creationDate, String reference) {
+    public Optional<List<BpBatchDTO>> findAllBatchesByCustomerAndCreationDateAfterAndReference(String customer, LocalDateTime creationDate, String reference) {
 
-        return jdbcTemplate.query(QUERY_FIND_BATCHES, (rs, rowNum) -> mapToBpBatchDTO(rs), customer, creationDate, reference);
+        List<BpBatchDTO> results = jdbcTemplate.query(QUERY_FIND_BATCHES, (rs, rowNum) -> mapToBpBatchDTO(rs), customer, creationDate, reference);
+
+        return results.isEmpty() ? Optional.empty() : Optional.of(results);
     }
 
     public BpBatchDTO mapToBpBatchDTO(ResultSet rs) throws SQLException {

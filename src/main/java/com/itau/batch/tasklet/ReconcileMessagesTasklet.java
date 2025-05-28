@@ -1,12 +1,11 @@
 package com.itau.batch.tasklet;
 
-import com.mzrt.conciliador.jpat.DTO.BatchStub;
-import com.mzrt.conciliador.jpat.DTO.PaymentStub;
-import com.mzrt.conciliador.jpat.DTO.SwiftMessageStub;
-import com.mzrt.conciliador.jpat.DTO.TransactionStub;
-import com.mzrt.conciliador.jpat.repository.MessageRepository;
+import com.itau.jpat.dto.BpBatchDTO;
+import com.itau.jpat.dto.BpBatchTransactionDTO;
+import com.itau.swift.dto.AsMonitoringMessageDTO;
+import com.itau.swift.dto.AsMonitoringPaymentDTO;
+import com.itau.utils.ChunkContextUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.StepContribution;
@@ -23,10 +22,7 @@ import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class ReconcileMessagesTasklet implements Tasklet {
-
-    private final MessageRepository messageRepository;
 
     private final Logger log = LoggerFactory.getLogger(ReconcileMessagesTasklet.class);
 
@@ -35,22 +31,22 @@ public class ReconcileMessagesTasklet implements Tasklet {
         ExecutionContext context = chunkContext.getStepContext()
                 .getStepExecution().getJobExecution().getExecutionContext();
 
-        List<SwiftMessageStub> messages = (List<SwiftMessageStub>) context.get("swiftMessages");
-        Map<String, BatchStub> batchMap = (Map<String, BatchStub>) context.get("batchMap");
+
+        List<AsMonitoringMessageDTO> messages = (List<AsMonitoringMessageDTO>)  ChunkContextUtil.getChunkContext(chunkContext, "swiftMessages");
+        Map<String, BpBatchDTO> batchMap = (Map<String, BpBatchDTO>)ChunkContextUtil.getChunkContext(chunkContext, "batchMap");
 
 
-
-        for (SwiftMessageStub stub : messages) {
-            BatchStub batch = batchMap.get(stub.getMessageId());
+        for (AsMonitoringMessageDTO message : messages) {
+            BpBatchDTO batch = batchMap.get(message.getMessageId());
             if (batch == null) {
                 continue;
             }
 
             boolean conciliado = true;
-            List<TransactionStub> transactions = batch.getTransactions();
+            List<BpBatchTransactionDTO> transactions = batch.getTransactions();
 
-            for (PaymentStub payment : stub.getPayments()) {
-                Optional<TransactionStub> match = transactions.stream()
+            for (AsMonitoringPaymentDTO payment : message.getPayments()) {
+                Optional<BpBatchTransactionDTO> match = transactions.stream()
                         .filter(t -> Objects.equals(t.getBtrReference(), payment.getReference()))
                         .filter(t -> Objects.equals(t.getBtrAmount(), payment.getAmount()))
                         .filter(t -> t.getBtrSourceAccount().contains(payment.getPayerAccount()))
@@ -63,7 +59,7 @@ public class ReconcileMessagesTasklet implements Tasklet {
                 }
             }
 
-            log.info("Mensaje {} conciliado: {}", stub.getMessageId(), conciliado);
+            log.info("Mensaje {} conciliado: {}", message.getMessageId(), conciliado);
         }
 
         return RepeatStatus.FINISHED;

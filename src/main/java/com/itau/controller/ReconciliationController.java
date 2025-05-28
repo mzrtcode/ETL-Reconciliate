@@ -39,7 +39,7 @@ public class ReconciliationController {
         return ResponseEntity.ok(Constants.JOB_STARTED_MSG);
     }
 
-    @Scheduled(cron = Constants.CRON_EXPRESSION)
+    //@Scheduled(cron = Constants.CRON_EXPRESSION)
     public void reconcile() throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
         log.info("--------------> JOB STARTED <--------------");
         JobParameters jobParameters = new JobParametersBuilder()

@@ -4,6 +4,7 @@ import com.itau.swift.dao.AsMonitoringMessagesDAO;
 import com.itau.swift.dto.AsMonitoringMessageDTO;
 import com.itau.utils.Constants;
 import org.apache.tomcat.util.bcel.Const;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.AdviceModeImportSelector;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -18,10 +19,11 @@ import static com.itau.utils.Constants.COLUMN_CUSTOMER_ID;
 @Repository
 public class AsMonitoringMessagesDAOImpl implements AsMonitoringMessagesDAO {
 
-    private final JdbcTemplate jdbcTemplate;
+    @Qualifier(Constants.BEAN_JDBC_TEMPLATE_SWIFT)
+    private final JdbcTemplate swiftRepository;
 
     public AsMonitoringMessagesDAOImpl(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.swiftRepository = jdbcTemplate;
     }
 
     public static final String QUERY_MONITORING_MESSAGES = """
@@ -55,7 +57,7 @@ public class AsMonitoringMessagesDAOImpl implements AsMonitoringMessagesDAO {
     @Override
     public List<AsMonitoringMessageDTO> findAllLoadedMessagesSince(LocalDateTime fromDate) {
 
-        return jdbcTemplate.query(QUERY_MONITORING_MESSAGES, (rs, rowNum) -> mapToAsMonitoringMessageDTO(rs), fromDate);
+        return swiftRepository.query(QUERY_MONITORING_MESSAGES, (rs, rowNum) -> mapToAsMonitoringMessageDTO(rs), fromDate);
 
     }
 

@@ -3,6 +3,7 @@ package com.itau.swift.dao.impl;
 import com.itau.swift.dao.AsMonitoringPaymentsDAO;
 import com.itau.swift.dto.AsMonitoringPaymentDTO;
 import com.itau.utils.Constants;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,16 +14,17 @@ import java.util.List;
 @Repository
 public class AsMonitoringPaymentsDAOImpl implements AsMonitoringPaymentsDAO {
 
-    private final JdbcTemplate jdbcTemplate;
+    @Qualifier(Constants.BEAN_JDBC_TEMPLATE_SWIFT)
+    private final JdbcTemplate swiftRepository;
 
     public AsMonitoringPaymentsDAOImpl(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.swiftRepository = jdbcTemplate;
     }
 
 
     @Override
     public List<AsMonitoringPaymentDTO> findAllPaymentsByMmgSequence(String mmgSequence) {
-        return jdbcTemplate.query(QUERY_MONITORING_PAYMENTS, (rs, rowNum) -> mapToAsMonitoringPaymentDTO(rs), mmgSequence);
+        return swiftRepository.query(QUERY_MONITORING_PAYMENTS, (rs, rowNum) -> mapToAsMonitoringPaymentDTO(rs), mmgSequence);
     }
 
     public static final String QUERY_MONITORING_PAYMENTS = """

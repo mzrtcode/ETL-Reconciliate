@@ -17,6 +17,7 @@ public class ChunkContextUtil {
     public static void setChunkContext(ChunkContext chunkContext, String key, Object value) {
         chunkContext.getStepContext()
                 .getStepExecution()
+                .getJobExecution()
                 .getExecutionContext()
                 .put(key, value);
     }

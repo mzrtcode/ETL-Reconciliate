@@ -31,6 +31,17 @@ public class Constants {
     public static final String COLUMN_DEST_ACCOUNT   = "dest_account";
     public static final String COLUMN_CUSTOMER       = "customer";
 
+    public static final String PREFIX_DATASOURCE_SWIFT = "swift.datasource";
+    public static final String PREFIX_DATASOURCE_JPAT = "jpat.datasource";
+    public static final String PREFIX_DATASOURCE_H2 = "h2.datasource";
+    public static final String BEAN_DATASOURCE_JPAT = "jpatDataSource";
+    public static final String BEAN_DATASOURCE_SWIFT = "swiftDataSource";
+    public static final String BEAN_JDBC_TEMPLATE_JPAT = "jpatJdbcTemplate";
+    public static final String BEAN_DATA_SOURCE = "dataSource";
+    public static final String BEAN_JDBC_TEMPLATE_H2 = "h2Template";
+    public static final String BEAN_JDBC_TEMPLATE_SWIFT = "swiftTemplate";
+
+
 
     public static final String CRON_EXPRESSION = "kjfdlaksjfkldsajflkajsd;kfjsd";
 }

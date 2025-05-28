@@ -40,17 +40,19 @@ public class SwiftJpatEtlReconcilerApplication {
 		return args -> {
 			LocalDateTime fechaConHoraCero = LocalDateTime.of(2020, 1, 23, 0, 0);
 
-			List<BpBatchDTO> dtoList = batchDAO.findAllBatchesByCustomerAndCreationDateAfterAndReference("9011543914", fechaConHoraCero, "CO012520000148");
-			System.out.println(dtoList);
+		//	List<BpBatchDTO> dtoList = batchDAO.findAllBatchesByCustomerAndCreationDateAfterAndReference("9011543914", fechaConHoraCero, "CO012520000148");
+			//System.out.println(dtoList);
 
 			System.out.println("Transacciones");
-			batchTransactionDAO.findTransactionByBatchUUID("7496178547940842553921").forEach(System.out::println);
+			//batchTransactionDAO.findTransactionByBatchUUID("7496178547940842553921").forEach(System.out::println);
 
 			System.out.println("Mensajes");
-			asMonitoringMessagesDAO.findAllLoadedMessagesSince(LocalDateTime.of(2020, 1, 23, 0, 0)).forEach(System.out::println);
+			//asMonitoringMessagesDAO.findAllLoadedMessagesSince(LocalDateTime.of(2020, 1, 23, 0, 0)).forEach(System.out::println);
 
 			System.out.println("Payments");
-			asMonitoringPaymentsDAO.findAllPaymentsByMmgSequence("20250422101806045056").forEach(System.out::println);
+			//asMonitoringPaymentsDAO.findAllPaymentsByMmgSequence("20250422101806045056").forEach(System.out::println);
+
+
 		};
 	}
 
