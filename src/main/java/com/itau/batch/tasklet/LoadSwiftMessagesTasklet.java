@@ -45,9 +45,7 @@ public class LoadSwiftMessagesTasklet implements Tasklet {
 
         ChunkContextUtil.setChunkContext(chunkContext , Constants.CONTEXT_KEY_MESSAGES, swiftMessages);
 
-        log.info("Swift Messages Loaded");
-        log.info("Swift Payments Loaded");
-        log.info("TOTAL Messages: " + swiftMessages.size());
+        log.info("Total Messages: {}", swiftMessages.size());
 
         swiftMessages.forEach(System.out::println);
 

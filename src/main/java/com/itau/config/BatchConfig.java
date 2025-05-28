@@ -8,6 +8,7 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.context.annotation.Bean;
@@ -25,19 +26,9 @@ public class BatchConfig {
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
 
-
-    @Bean
-    public Job reconciliateJob(){
-        return new JobBuilder("ReconciliateSwiftJpat", jobRepository)
-                .start(loadSwiftMessagesStep())
-                .next(loadJpatBatchesStep())
-                .next(reconciliateMessagesStep())
-                .build();
-    }
-
     @Bean
     public Step loadSwiftMessagesStep(){
-        return new StepBuilder("LoadSwiftMessagesStep", jobRepository)
+        return new StepBuilder("loadSwiftMessagesStep", jobRepository)
                 .tasklet(loadSwiftMessagesTasklet, transactionManager)
                 .build();
     }
@@ -56,5 +47,14 @@ public class BatchConfig {
                 .build();
     }
 
+    @Bean
+    public Job reconciliateJob(){
+        return new JobBuilder("ReconciliateSwiftJpat", jobRepository)
+                .incrementer(new RunIdIncrementer())
+                .start(loadSwiftMessagesStep())
+                .next(loadJpatBatchesStep())
+                .next(reconciliateMessagesStep())
+                .build();
+    }
 
 }
