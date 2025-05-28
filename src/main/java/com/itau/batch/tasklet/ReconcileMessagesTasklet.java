@@ -37,8 +37,9 @@ public class ReconcileMessagesTasklet implements Tasklet {
                 .getStepExecution().getJobExecution().getExecutionContext();
 
 
-        List<AsMonitoringMessageDTO> messages = (List<AsMonitoringMessageDTO>)  ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES);
-        Map<String, BpBatchDTO> batchMap = (Map<String, BpBatchDTO>)ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_BATCH_MAP);
+        List<AsMonitoringMessageDTO> messages = ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES);
+        Map<String, BpBatchDTO> batchMap = ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_BATCH_MAP);
+
 
 
         for (AsMonitoringMessageDTO message : messages) {

@@ -6,8 +6,10 @@ public class ChunkContextUtil {
 
     private ChunkContextUtil() {}
 
-    public static Object getChunkContext(ChunkContext chunkContext, String key) {
-        return chunkContext.getStepContext()
+
+    @SuppressWarnings("unchecked")
+    public static <T> T getChunkContext(ChunkContext chunkContext, String key) {
+        return (T) chunkContext.getStepContext()
                 .getStepExecution()
                 .getJobExecution()
                 .getExecutionContext()
@@ -21,4 +23,5 @@ public class ChunkContextUtil {
                 .getExecutionContext()
                 .put(key, value);
     }
+
 }

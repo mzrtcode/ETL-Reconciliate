@@ -42,11 +42,10 @@ public class LoadJpatBatchesTasklet implements Tasklet {
                 .getStepExecution().getJobExecution().getExecutionContext();
 
 
-        List<AsMonitoringMessageDTO> messages = Optional
-                .ofNullable((List<AsMonitoringMessageDTO>) ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES))
-                .orElse(Collections.emptyList());
+        List<AsMonitoringMessageDTO> messages = ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES);
 
-        if (messages.isEmpty()) {
+
+        if (messages == null || messages.isEmpty()) {
             log.warn("No se encontraron mensajes en el contexto.");
             return RepeatStatus.FINISHED;
         }
