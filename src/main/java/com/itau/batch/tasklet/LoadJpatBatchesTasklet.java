@@ -34,6 +34,10 @@ public class LoadJpatBatchesTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+
+        log.info("--------------> STARTED LOADING JPAT BATCHES <--------------");
+
+
         ExecutionContext context = chunkContext.getStepContext()
                 .getStepExecution().getJobExecution().getExecutionContext();
 
@@ -55,6 +59,9 @@ public class LoadJpatBatchesTasklet implements Tasklet {
 
         log.info("Batches encontrados: {}", batchMap.keySet());
         context.put(Constants.CONTEXT_KEY_BATCH_MAP, batchMap);
+
+        log.info("--------------> FINISHED LOADING JPAT BATCHES <--------------");
+
         return RepeatStatus.FINISHED;
     }
 
@@ -96,5 +103,6 @@ public class LoadJpatBatchesTasklet implements Tasklet {
             batchMap.put(message.getMessageId(), batch);
             log.debug("Batch agregado para messageId: {}", message.getMessageId());
         }));
+
     }
 }

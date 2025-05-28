@@ -29,6 +29,10 @@ public class ReconcileMessagesTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+
+        log.info("--------------> STARTED MESSAGE RECONCILIATION SWIFT vs JPAT <--------------");
+
+
         ExecutionContext context = chunkContext.getStepContext()
                 .getStepExecution().getJobExecution().getExecutionContext();
 
@@ -63,6 +67,7 @@ public class ReconcileMessagesTasklet implements Tasklet {
             log.info("Mensaje {} conciliado: {}", message.getMessageId(), conciliado);
         }
 
+        log.info("--------------> FINISHED MESSAGE RECONCILIATION SWIFT vs JPAT <--------------");
         return RepeatStatus.FINISHED;
     }
 }

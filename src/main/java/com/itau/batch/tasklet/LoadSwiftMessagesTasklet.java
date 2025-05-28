@@ -31,6 +31,9 @@ public class LoadSwiftMessagesTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
 
+        log.info("--------------> STARTED LOADING SWIFT MESSAGES <--------------");
+
+
         LocalDateTime currentTime = LocalDateTime.of(2025, 1, 23, 0, 0);
 
         List<AsMonitoringMessageDTO> swiftMessages = asMonitoringMessagesDAO.findAllLoadedMessagesSince(currentTime);
@@ -47,6 +50,8 @@ public class LoadSwiftMessagesTasklet implements Tasklet {
         log.info("TOTAL Messages: " + swiftMessages.size());
 
         swiftMessages.forEach(System.out::println);
+
+        log.info("--------------> FINISHED LOADING SWIFT MESSAGES <--------------");
         return RepeatStatus.FINISHED;
     }
 }
