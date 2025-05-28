@@ -56,7 +56,7 @@ public class LoadJpatBatchesTasklet implements Tasklet {
             processMessage(message, batchMap);
         }
 
-        log.info("Batches encontrados: {}", batchMap.keySet());
+        log.info("Batches encontrados: {}", batchMap.keySet().size());
         context.put(Constants.CONTEXT_KEY_BATCH_MAP, batchMap);
 
         log.info("--------------> FINISHED LOADING JPAT BATCHES <--------------");
@@ -88,13 +88,23 @@ public class LoadJpatBatchesTasklet implements Tasklet {
         String customerId = message.getCustomerId();
         LocalDate searchDate = LocalDate.now().minusMonths(2);
 
-        log.info("Buscando batch con customerId: {}, reference: {}", customerId, reference);
-
         Optional<List<BpBatchDTO>> batchOpt = batchDao.findAllBatchesByCustomerAndCreationDateAfterAndReference(
                 customerId,
                 searchDate.atStartOfDay(),
                 reference
         );
+
+        if (batchOpt.isEmpty()) {
+            log.warn("No se encontro ningún batch para customerId={}, reference={}", customerId, reference);
+            return;
+        }
+
+        List<BpBatchDTO> batches = batchOpt.get();
+        log.info("Se encontro {} batch(es) para customerId={}, reference={}. IDs: {}",
+                batches.size(), customerId, reference,
+                batches.stream().map(BpBatchDTO::getUuid).toList());
+
+
 
         batchOpt.ifPresent(batchList -> batchList.forEach(batch -> {
             List<BpBatchTransactionDTO> transactions = batchTransactionDAO.findTransactionByBatchUUID(batch.getUuid());

@@ -38,16 +38,22 @@ public class LoadSwiftMessagesTasklet implements Tasklet {
 
         List<AsMonitoringMessageDTO> swiftMessages = asMonitoringMessagesDAO.findAllLoadedMessagesSince(currentTime);
 
+        log.info("Total Swift Messages: {}", swiftMessages.size());
+
         swiftMessages.forEach(m -> {
             List<AsMonitoringPaymentDTO> payments = asMonitoringPaymentsDAO.findAllPaymentsByMmgSequence(m.getMessageId());
+
+            if (payments == null || payments.isEmpty()) {
+                log.warn("No se encontraron pagos para el lote con messageId={}", m.getMessageId());
+            } else {
+                log.info("Se encontraron {} pagos para el lote con messageId={}", payments.size(), m.getMessageId());
+            }
+
             m.setPayments(payments);
         });
 
         ChunkContextUtil.setChunkContext(chunkContext , Constants.CONTEXT_KEY_MESSAGES, swiftMessages);
 
-        log.info("Total Messages: {}", swiftMessages.size());
-
-        swiftMessages.forEach(System.out::println);
 
         log.info("--------------> FINISHED LOADING SWIFT MESSAGES <--------------");
         return RepeatStatus.FINISHED;
