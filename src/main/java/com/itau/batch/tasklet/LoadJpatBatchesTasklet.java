@@ -7,6 +7,7 @@ import com.itau.jpat.dto.BpBatchTransactionDTO;
 import com.itau.swift.dto.AsMonitoringMessageDTO;
 import com.itau.swift.dto.AsMonitoringPaymentDTO;
 import com.itau.utils.ChunkContextUtil;
+import com.itau.utils.Constants;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,7 @@ public class LoadJpatBatchesTasklet implements Tasklet {
 
 
     private static final Logger log = LoggerFactory.getLogger(LoadJpatBatchesTasklet.class);
-    private static final String CONTEXT_KEY_MESSAGES = "swiftMessages";
-    private static final String CONTEXT_KEY_BATCH_MAP = "batchMap";
+
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
@@ -39,7 +39,7 @@ public class LoadJpatBatchesTasklet implements Tasklet {
 
 
         List<AsMonitoringMessageDTO> messages = Optional
-                .ofNullable((List<AsMonitoringMessageDTO>) ChunkContextUtil.getChunkContext(chunkContext, CONTEXT_KEY_MESSAGES))
+                .ofNullable((List<AsMonitoringMessageDTO>) ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES))
                 .orElse(Collections.emptyList());
 
         if (messages.isEmpty()) {
@@ -54,7 +54,7 @@ public class LoadJpatBatchesTasklet implements Tasklet {
         }
 
         log.info("Batches encontrados: {}", batchMap.keySet());
-        context.put(CONTEXT_KEY_BATCH_MAP, batchMap);
+        context.put(Constants.CONTEXT_KEY_BATCH_MAP, batchMap);
         return RepeatStatus.FINISHED;
     }
 

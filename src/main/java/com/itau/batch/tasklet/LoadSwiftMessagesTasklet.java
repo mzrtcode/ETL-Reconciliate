@@ -5,6 +5,7 @@ import com.itau.swift.dao.AsMonitoringPaymentsDAO;
 import com.itau.swift.dto.AsMonitoringMessageDTO;
 import com.itau.swift.dto.AsMonitoringPaymentDTO;
 import com.itau.utils.ChunkContextUtil;
+import com.itau.utils.Constants;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +40,7 @@ public class LoadSwiftMessagesTasklet implements Tasklet {
             m.setPayments(payments);
         });
 
-        ChunkContextUtil.setChunkContext(chunkContext ,"swiftMessages", swiftMessages);
+        ChunkContextUtil.setChunkContext(chunkContext , Constants.CONTEXT_KEY_MESSAGES, swiftMessages);
 
         log.info("Swift Messages Loaded");
         log.info("Swift Payments Loaded");

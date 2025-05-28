@@ -5,6 +5,7 @@ import com.itau.jpat.dto.BpBatchTransactionDTO;
 import com.itau.swift.dto.AsMonitoringMessageDTO;
 import com.itau.swift.dto.AsMonitoringPaymentDTO;
 import com.itau.utils.ChunkContextUtil;
+import com.itau.utils.Constants;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +33,8 @@ public class ReconcileMessagesTasklet implements Tasklet {
                 .getStepExecution().getJobExecution().getExecutionContext();
 
 
-        List<AsMonitoringMessageDTO> messages = (List<AsMonitoringMessageDTO>)  ChunkContextUtil.getChunkContext(chunkContext, "swiftMessages");
-        Map<String, BpBatchDTO> batchMap = (Map<String, BpBatchDTO>)ChunkContextUtil.getChunkContext(chunkContext, "batchMap");
+        List<AsMonitoringMessageDTO> messages = (List<AsMonitoringMessageDTO>)  ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES);
+        Map<String, BpBatchDTO> batchMap = (Map<String, BpBatchDTO>)ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_BATCH_MAP);
 
 
         for (AsMonitoringMessageDTO message : messages) {

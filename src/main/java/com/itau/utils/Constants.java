@@ -41,6 +41,9 @@ public class Constants {
     public static final String BEAN_JDBC_TEMPLATE_H2 = "h2Template";
     public static final String BEAN_JDBC_TEMPLATE_SWIFT = "swiftTemplate";
 
+    public static final String CONTEXT_KEY_MESSAGES = "swiftMessages";
+    public static final String CONTEXT_KEY_BATCH_MAP = "batchMap";
+
 
 
     public static final String CRON_EXPRESSION = "kjfdlaksjfkldsajflkajsd;kfjsd";
