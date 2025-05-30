@@ -23,14 +23,18 @@ public class BpBatchDAOImpl implements BpBatchDAO {
     private final JdbcTemplate jdbcTemplate;
 
     private static final String QUERY_FIND_BATCHES = """
-                SELECT  b.UUID, SUM(t.BTRAMOUNT) AS TOTALAMOUNT, b.BATNAME
-                FROM BP_BATCH b
-                INNER JOIN BP_BATCHTRANSACTION t  ON b.UUID = t.BATCH
-                WHERE b.CUSTOMER = ?
-                AND b.BATCREATIONDATE >= ?
-                AND t.BTRREFERENCE = ?
-                GROUP BY b.UUID, b.BATNAME
-            """;
+            SELECT 
+                b.UUID, 
+                b.BATNAME,
+                SUM(t_all.BTRAMOUNT) AS TOTALAMOUNT
+            FROM BP_BATCHTRANSACTION t_ref
+            INNER JOIN BP_BATCH b ON t_ref.BATCH = b.UUID
+            INNER JOIN BP_BATCHTRANSACTION t_all ON t_all.BATCH = b.UUID
+            WHERE b.CUSTOMER = ?
+              AND b.BATCREATIONDATE >= ?
+              AND t_ref.BTRREFERENCE = ?
+            GROUP BY b.UUID, b.BATNAME
+    """;
 
     public BpBatchDAOImpl(@Qualifier(Constants.BEAN_JDBC_TEMPLATE_JPAT) JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
