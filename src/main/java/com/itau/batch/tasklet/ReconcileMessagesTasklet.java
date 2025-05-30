@@ -85,26 +85,33 @@ public class ReconcileMessagesTasklet implements Tasklet {
         return RepeatStatus.FINISHED;
     }
 
-    private ReconciliationBatchResult conciliarLote(AsMonitoringMessageDTO message, List<BpBatchDTO> batches,
-                                                    List<ReconciliationTransactionResult> trxResults) {
-        boolean duplicado = batches.size() > 1;
-        boolean sinLote = batches.isEmpty();
-        boolean allOk = trxResults.stream().allMatch(tr -> "OK".equals(tr.getStatus()));
-
-        String status;
-        if (sinLote) {
-            status = "ERROR";
-        } else if (duplicado) {
-            status = "LOTE DUPLICADO JPAT";
-        } else if (allOk) {
-            status = "OK";
-        } else {
-            status = "ERROR";
-        }
-
-        BpBatchDTO selectedBatch = sinLote ? new BpBatchDTO() : batches.get(0);
+    private ReconciliationBatchResult conciliarLote(AsMonitoringMessageDTO message, List<BpBatchDTO> batches, List<ReconciliationTransactionResult> trxResults) {
+        boolean isDuplicated = batches.size() > 1;
+        boolean hasBatches = !batches.isEmpty();
 
         ReconciliationBatchResult result = new ReconciliationBatchResult();
+        String status;
+
+        BpBatchDTO selectedBatch = hasBatches ? batches.get(0) : new BpBatchDTO();
+
+        // Calcular si todas las transacciones están OK
+        boolean allTransactionsOk = trxResults.stream().allMatch(t -> "OK".equals(t.getStatus()));
+
+        // Validar monto
+        boolean amountMatches = Objects.equals(message.getAmount(), selectedBatch.getTotalAmount());
+
+        if (!hasBatches) {
+            status = "ERROR";
+        } else if (isDuplicated) {
+            status = "LOTE DUPLICADO JPAT";
+        } else if (!allTransactionsOk) {
+            status = "TRANSACCIONES CON ERROR";
+        } else if (!amountMatches) {
+            status = "DIFERENCIA EN VALOR";
+        } else {
+            status = "OK";
+        }
+
         result.setSwiftId(message.getMessageId());
         result.setCustomerNit(message.getCustomerId());
         result.setFileName(selectedBatch.getBatName());
@@ -113,6 +120,8 @@ public class ReconcileMessagesTasklet implements Tasklet {
         result.setAmountSwift(message.getAmount());
         result.setAmountJpat(selectedBatch.getTotalAmount());
         result.setStatus(status);
+
+
         return result;
     }
 
@@ -127,28 +136,39 @@ public class ReconcileMessagesTasklet implements Tasklet {
         List<BpBatchTransactionDTO> transactions = batches.isEmpty() ? Collections.emptyList() : batches.get(0).getTransactions();
         if (transactions == null) transactions = Collections.emptyList();
 
+        Set<BpBatchTransactionDTO> matchedTransactions = new HashSet<>();
+
         for (AsMonitoringPaymentDTO payment : message.getPayments()) {
             ReconciliationTransactionResult result = new ReconciliationTransactionResult();
 
             List<BpBatchTransactionDTO> matches = transactions.stream()
                     .filter(t -> Objects.equals(t.getBtrReference(), payment.getReference()))
-                    .filter(t -> t.getBtrAmount().compareTo(payment.getAmount()) == 0)
                     .filter(t -> Objects.equals(t.getBtrSourceAccount(), payment.getPayerAccount()))
                     .filter(t -> Objects.equals(t.getBtrDestAccount(), payment.getBeneficiaryAccount()))
                     .toList();
 
-            String status;
-            if (matches.isEmpty()) {
-                status = "NO EN JPAT";
-            } else if (matches.size() > 1) {
-                status = "DUPLICADO JPAT";
-            } else {
-                status = "OK";
-                BpBatchTransactionDTO match = matches.get(0);
-                result.setJpatReference(match.getBtrReference());
-                result.setJpatAmount(match.getBtrAmount());
-                result.setJpatSourceAccount(match.getBtrSourceAccount());
-                result.setJpatDestinationAccount(match.getBtrDestAccount());
+            String status = "NO EN JPAT";
+            if (!matches.isEmpty()) {
+                long exactMatches = matches.stream()
+                        .filter(t -> t.getBtrAmount().compareTo(payment.getAmount()) == 0)
+                        .count();
+
+                if (exactMatches == 1) {
+                    BpBatchTransactionDTO matched = matches.stream()
+                            .filter(t -> t.getBtrAmount().compareTo(payment.getAmount()) == 0)
+                            .findFirst().get();
+
+                    result.setJpatReference(matched.getBtrReference());
+                    result.setJpatAmount(matched.getBtrAmount());
+                    result.setJpatSourceAccount(matched.getBtrSourceAccount());
+                    result.setJpatDestinationAccount(matched.getBtrDestAccount());
+                    matchedTransactions.add(matched);
+                    status = "OK";
+                } else if (exactMatches > 1) {
+                    status = "DUPLICADO JPAT";
+                } else {
+                    status = "DIFERENCIA EN VALOR";
+                }
             }
 
             result.setSwiftId(message.getMessageId());
@@ -161,7 +181,31 @@ public class ReconcileMessagesTasklet implements Tasklet {
             results.add(result);
         }
 
+        // Añadir transacciones de JPAT que no hicieron match con ningún pago de SWIFT
+        for (BpBatchTransactionDTO trx : transactions) {
+            if (!matchedTransactions.contains(trx)) {
+                ReconciliationTransactionResult extra = new ReconciliationTransactionResult();
+                extra.setJpatReference(trx.getBtrReference());
+                extra.setJpatAmount(trx.getBtrAmount());
+                extra.setJpatSourceAccount(trx.getBtrSourceAccount());
+                extra.setJpatDestinationAccount(trx.getBtrDestAccount());
+                extra.setStatus("NO EN SWIFT");
+                extra.setSwiftId(message.getMessageId());
+
+                // Campos de SWIFT se dejan en blanco
+                extra.setSwiftReference(null);
+                extra.setSwiftAmount(null);
+                extra.setSwiftSourceAccount(null);
+                extra.setSwiftDestinationAccount(null);
+
+                results.add(extra);
+            }
+        }
+
         return results;
     }
+
+
+
 }
 
