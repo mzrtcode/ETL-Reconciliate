@@ -15,10 +15,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
-import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -32,84 +32,48 @@ public class ReconcileMessagesTasklet implements Tasklet {
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
         log.info("--------------> STARTED MESSAGE RECONCILIATION SWIFT vs JPAT <--------------");
 
-        List<ReconciliationBatchResult> batchResultsExcel = new ArrayList<>();
-        List<ReconciliationTransactionResult> transactionResultsExcel = new ArrayList<>();
+        List<AsMonitoringMessageDTO> messages = ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES);
+        Map<String, List<BpBatchDTO>> batchesMap = ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_BATCH_MAP);
 
-        ExecutionContext context = chunkContext.getStepContext()
-                .getStepExecution().getJobExecution().getExecutionContext();
-
-        List<AsMonitoringMessageDTO> messages =
-                ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES);
-
-        Map<String, List<BpBatchDTO>> batchesMap =
-                ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_BATCH_MAP);
-
-        if (messages == null || messages.isEmpty()) {
+        if (isEmpty(messages)) {
             log.warn("No messages found to reconcile.");
             return RepeatStatus.FINISHED;
         }
 
-        for (AsMonitoringMessageDTO message : messages) {
-            List<BpBatchDTO> batches = batchesMap.getOrDefault(message.getMessageId(), Collections.emptyList());
+        List<ReconciliationBatchResult> batchResults = new ArrayList<>();
+        List<ReconciliationTransactionResult> transactionResults = new ArrayList<>();
 
-            if (batches.isEmpty()) {
-                log.warn("No batches found for message ID={}", message.getMessageId());
-            }
+        messages.forEach(message -> processMessage(message, batchesMap, batchResults, transactionResults));
 
-            List<ReconciliationTransactionResult> trxResults = conciliarTransacciones(message, batches);
-            transactionResultsExcel.addAll(trxResults);
-
-            ReconciliationBatchResult batchResult = conciliarLote(message, batches, trxResults);
-            batchResultsExcel.add(batchResult);
-
-            log.info("==> Batch reconciliation for messageId={} | customer={} | file={} | fechaCargue={} | fechaAplicacion={} | " +
-                            "amountSwift={} | amountJpat={} | trxCountSwift={} | trxCountJpat={} | status={}",
-                    batchResult.getSwiftId(), batchResult.getCustomerNit(), batchResult.getFileName(),
-                    batchResult.getLoadingTime(), batchResult.getApplicationDate(),
-                    batchResult.getAmountSwift(), batchResult.getAmountJpat(),
-                    message.getPayments().size(),
-                    batches.isEmpty() ? 0 : batches.get(0).getTransactions().size(),
-                    batchResult.getStatus());
-
-            for (ReconciliationTransactionResult tr : trxResults) {
-                log.info(" -> Transaction reconciliation | refSwift={} | valSwift={} | srcSwift={} | dstSwift={} | " +
-                                "refJpat={} | valJpat={} | srcJpat={} | dstJpat={} | status={}",
-                        tr.getSwiftReference(), tr.getSwiftAmount(), tr.getSwiftSourceAccount(), tr.getSwiftDestinationAccount(),
-                        tr.getJpatReference(), tr.getJpatAmount(), tr.getJpatSourceAccount(), tr.getJpatDestinationAccount(),
-                        tr.getStatus());
-            }
-        }
-
-        ExcelReportService.generarExcel(batchResultsExcel, transactionResultsExcel);
-
+        ExcelReportService.generarExcel(batchResults, transactionResults);
         log.info("--------------> FINISHED MESSAGE RECONCILIATION SWIFT vs JPAT <--------------");
         return RepeatStatus.FINISHED;
     }
 
-    private ReconciliationBatchResult conciliarLote(AsMonitoringMessageDTO message, List<BpBatchDTO> batches, List<ReconciliationTransactionResult> trxResults) {
-        boolean isDuplicated = batches.size() > 1;
-        boolean hasBatches = !batches.isEmpty();
+    private void processMessage(AsMonitoringMessageDTO message, Map<String, List<BpBatchDTO>> batchesMap,
+                                List<ReconciliationBatchResult> batchResults, List<ReconciliationTransactionResult> transactionResults) {
 
-        ReconciliationBatchResult result = new ReconciliationBatchResult();
-        String status;
-
-        BpBatchDTO selectedBatch = hasBatches ? batches.get(0) : new BpBatchDTO();
-
-        boolean allTransactionsOk = trxResults.stream().allMatch(t -> "OK".equals(t.getStatus()));
-        boolean amountMatches = Objects.equals(message.getAmount(), selectedBatch.getTotalAmount());
-
-        if (!hasBatches) {
-            status = "ERROR";
-        } else if (isDuplicated) {
-            status = "LOTE DUPLICADO JPAT";
-        } else if (!allTransactionsOk) {
-            status = "TRANSACCIONES CON ERROR";
-        } else if (!amountMatches) {
-            status = "DIFERENCIA EN VALOR";
-        } else {
-            status = "OK";
+        List<BpBatchDTO> batches = batchesMap.getOrDefault(message.getMessageId(), Collections.emptyList());
+        if (batches.isEmpty()) {
+            log.warn("No batches found for message ID={}", message.getMessageId());
         }
 
+        List<ReconciliationTransactionResult> trxResults = reconcileTransactions(message, batches);
+        transactionResults.addAll(trxResults);
+
+        ReconciliationBatchResult batchResult = reconcileBatch(message, batches, trxResults);
+        batchResults.add(batchResult);
+
+        logBatchResult(batchResult, message, batches);
+        trxResults.forEach(this::logTransactionResult);
+    }
+
+    private ReconciliationBatchResult reconcileBatch(AsMonitoringMessageDTO message, List<BpBatchDTO> batches,
+                                                     List<ReconciliationTransactionResult> trxResults) {
+        BpBatchDTO selectedBatch = batches.isEmpty() ? new BpBatchDTO() : batches.get(0);
+        String status = determineBatchStatus(batches, trxResults, message.getAmount(), selectedBatch.getTotalAmount());
+
+        ReconciliationBatchResult result = new ReconciliationBatchResult();
         result.setSwiftId(message.getMessageId());
         result.setCustomerNit(message.getCustomerId());
         result.setFileName(selectedBatch.getBatName());
@@ -122,73 +86,123 @@ public class ReconcileMessagesTasklet implements Tasklet {
         return result;
     }
 
-    private List<ReconciliationTransactionResult> conciliarTransacciones(AsMonitoringMessageDTO message, List<BpBatchDTO> batches) {
-        List<ReconciliationTransactionResult> results = new ArrayList<>();
-        List<AsMonitoringPaymentDTO> swiftPayments = Optional.ofNullable(message.getPayments()).orElse(Collections.emptyList());
+    private String determineBatchStatus(List<BpBatchDTO> batches, List<ReconciliationTransactionResult> trxResults,
+                                        BigDecimal swiftAmount, BigDecimal jpatAmount) {
+        if (batches.isEmpty()) return "ERROR";
+        if (batches.size() > 1) return "LOTE DUPLICADO JPAT";
+        if (trxResults.stream().anyMatch(t -> !"OK".equals(t.getStatus()))) return "TRANSACCIONES CON ERROR";
+        if (!Objects.equals(swiftAmount, jpatAmount)) return "DIFERENCIA EN VALOR";
+        return "OK";
+    }
 
-        List<BpBatchTransactionDTO> allJpatTransactions = batches.stream()
+    private List<ReconciliationTransactionResult> reconcileTransactions(AsMonitoringMessageDTO message, List<BpBatchDTO> batches) {
+        List<AsMonitoringPaymentDTO> swiftPayments = Optional.ofNullable(message.getPayments()).orElse(Collections.emptyList());
+        List<BpBatchTransactionDTO> jpatTransactions = batches.stream()
                 .flatMap(b -> Optional.ofNullable(b.getTransactions()).orElse(Collections.emptyList()).stream())
                 .collect(Collectors.toList());
 
-        Map<BpBatchTransactionDTO, Boolean> usedJpatTransactions = new HashMap<>();
-        allJpatTransactions.forEach(t -> usedJpatTransactions.put(t, false));
+        Map<BpBatchTransactionDTO, Boolean> usedJpatTransactions = jpatTransactions.stream()
+                .collect(Collectors.toMap(t -> t, t -> false, (a, b) -> a, HashMap::new));
 
-        for (AsMonitoringPaymentDTO payment : swiftPayments) {
-            List<BpBatchTransactionDTO> matches = allJpatTransactions.stream()
-                    .filter(t -> Objects.equals(t.getBtrReference(), payment.getReference()))
-                    .filter(t -> Objects.equals(t.getBtrSourceAccount(), payment.getPayerAccount()))
-                    .filter(t -> Objects.equals(t.getBtrDestAccount(), payment.getBeneficiaryAccount()))
-                    .filter(t -> t.getBtrAmount().compareTo(payment.getAmount()) == 0)
-                    .collect(Collectors.toList());
-
-            int matchIndex = 1;
-            for (BpBatchTransactionDTO match : matches) {
-                ReconciliationTransactionResult result = new ReconciliationTransactionResult();
-                result.setSwiftId(message.getMessageId());
-                result.setSwiftReference(payment.getReference());
-                result.setSwiftAmount(payment.getAmount());
-                result.setSwiftSourceAccount(payment.getPayerAccount());
-                result.setSwiftDestinationAccount(payment.getBeneficiaryAccount());
-
-                result.setJpatReference(match.getBtrReference());
-                result.setJpatAmount(match.getBtrAmount());
-                result.setJpatSourceAccount(match.getBtrSourceAccount());
-                result.setJpatDestinationAccount(match.getBtrDestAccount());
-
-                result.setStatus(matches.size() > 1 ? "TRANSACCIÓN DUPLICADA JPAT " + matchIndex : "OK");
-                matchIndex++;
-                usedJpatTransactions.put(match, true);
-                results.add(result);
-            }
-
-            if (matches.isEmpty()) {
-                ReconciliationTransactionResult result = new ReconciliationTransactionResult();
-                result.setSwiftId(message.getMessageId());
-                result.setSwiftReference(payment.getReference());
-                result.setSwiftAmount(payment.getAmount());
-                result.setSwiftSourceAccount(payment.getPayerAccount());
-                result.setSwiftDestinationAccount(payment.getBeneficiaryAccount());
-                result.setStatus("NO EN JPAT");
-                results.add(result);
-            }
-        }
-
-        for (Map.Entry<BpBatchTransactionDTO, Boolean> entry : usedJpatTransactions.entrySet()) {
-            if (!entry.getValue()) {
-                ReconciliationTransactionResult extra = new ReconciliationTransactionResult();
-                BpBatchTransactionDTO trx = entry.getKey();
-                extra.setSwiftId(message.getMessageId());
-                extra.setJpatReference(trx.getBtrReference());
-                extra.setJpatAmount(trx.getBtrAmount());
-                extra.setJpatSourceAccount(trx.getBtrSourceAccount());
-                extra.setJpatDestinationAccount(trx.getBtrDestAccount());
-                extra.setStatus("NO EN SWIFT");
-                results.add(extra);
-            }
-        }
+        List<ReconciliationTransactionResult> results = new ArrayList<>();
+        swiftPayments.forEach(payment -> reconcilePayment(payment, jpatTransactions, usedJpatTransactions, message.getMessageId(), results));
+        addUnmatchedJpatTransactions(jpatTransactions, usedJpatTransactions, message.getMessageId(), results);
 
         return results;
     }
 
+    private void reconcilePayment(AsMonitoringPaymentDTO payment, List<BpBatchTransactionDTO> jpatTransactions,
+                                  Map<BpBatchTransactionDTO, Boolean> usedJpatTransactions, String swiftId,
+                                  List<ReconciliationTransactionResult> results) {
+        List<BpBatchTransactionDTO> matches = jpatTransactions.stream()
+                .filter(t -> isMatchingTransaction(t, payment))
+                .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            results.add(createUnmatchedSwiftTransaction(swiftId, payment));
+            return;
+        }
+
+        int matchIndex = 1;
+        for (BpBatchTransactionDTO match : matches) {
+            results.add(createMatchedTransaction(swiftId, payment, match, matches.size() > 1 ? "TRANSACCIÓN DUPLICADA JPAT " + matchIndex++ : "OK"));
+            usedJpatTransactions.put(match, true);
+        }
+    }
+
+    private boolean isMatchingTransaction(BpBatchTransactionDTO jpat, AsMonitoringPaymentDTO swift) {
+        return Objects.equals(jpat.getBtrReference(), swift.getReference())
+                && Objects.equals(jpat.getBtrSourceAccount(), swift.getPayerAccount())
+                && Objects.equals(jpat.getBtrDestAccount(), swift.getBeneficiaryAccount())
+                && jpat.getBtrAmount().compareTo(swift.getAmount()) == 0;
+    }
+
+    private ReconciliationTransactionResult createMatchedTransaction(String swiftId, AsMonitoringPaymentDTO payment,
+                                                                     BpBatchTransactionDTO match, String status) {
+        ReconciliationTransactionResult result = new ReconciliationTransactionResult();
+        result.setSwiftId(swiftId);
+        result.setSwiftReference(payment.getReference());
+        result.setSwiftAmount(payment.getAmount());
+        result.setSwiftSourceAccount(payment.getPayerAccount());
+        result.setSwiftDestinationAccount(payment.getBeneficiaryAccount());
+        result.setJpatReference(match.getBtrReference());
+        result.setJpatAmount(match.getBtrAmount());
+        result.setJpatSourceAccount(match.getBtrSourceAccount());
+        result.setJpatDestinationAccount(match.getBtrDestAccount());
+        result.setStatus(status);
+        return result;
+    }
+
+    private ReconciliationTransactionResult createUnmatchedSwiftTransaction(String swiftId, AsMonitoringPaymentDTO payment) {
+        ReconciliationTransactionResult result = new ReconciliationTransactionResult();
+        result.setSwiftId(swiftId);
+        result.setSwiftReference(payment.getReference());
+        result.setSwiftAmount(payment.getAmount());
+        result.setSwiftSourceAccount(payment.getPayerAccount());
+        result.setSwiftDestinationAccount(payment.getBeneficiaryAccount());
+        result.setStatus("NO EN JPAT");
+        return result;
+    }
+
+    private void addUnmatchedJpatTransactions(List<BpBatchTransactionDTO> jpatTransactions,
+                                              Map<BpBatchTransactionDTO, Boolean> usedJpatTransactions,
+                                              String swiftId, List<ReconciliationTransactionResult> results) {
+        usedJpatTransactions.entrySet().stream()
+                .filter(entry -> !entry.getValue())
+                .map(Map.Entry::getKey)
+                .forEach(trx -> {
+                    ReconciliationTransactionResult result = new ReconciliationTransactionResult();
+                    result.setSwiftId(swiftId);
+                    result.setJpatReference(trx.getBtrReference());
+                    result.setJpatAmount(trx.getBtrAmount());
+                    result.setJpatSourceAccount(trx.getBtrSourceAccount());
+                    result.setJpatDestinationAccount(trx.getBtrDestAccount());
+                    result.setStatus("NO EN SWIFT");
+                    results.add(result);
+                });
+    }
+
+    private void logBatchResult(ReconciliationBatchResult result, AsMonitoringMessageDTO message, List<BpBatchDTO> batches) {
+        log.info("==> Batch reconciliation for messageId={} | customer={} | file={} | fechaCargue={} | fechaAplicacion={} | " +
+                        "amountSwift={} | amountJpat={} | trxCountSwift={} | trxCountJpat={} | status={}",
+                result.getSwiftId(), result.getCustomerNit(), result.getFileName(),
+                result.getLoadingTime(), result.getApplicationDate(),
+                result.getAmountSwift(), result.getAmountJpat(),
+                Optional.ofNullable(message.getPayments()).orElse(Collections.emptyList()).size(),
+                batches.isEmpty() ? 0 : batches.get(0).getTransactions().size(),
+                result.getStatus());
+    }
+
+    private void logTransactionResult(ReconciliationTransactionResult tr) {
+        log.info(" -> Transaction reconciliation | refSwift={} | valSwift={} | srcSwift={} | dstSwift={} | " +
+                        "refJpat={} | valJpat={} | srcJpat={} | dstJpat={} | status={}",
+                tr.getSwiftReference(), tr.getSwiftAmount(), tr.getSwiftSourceAccount(), tr.getSwiftDestinationAccount(),
+                tr.getJpatReference(), tr.getJpatAmount(), tr.getJpatSourceAccount(), tr.getJpatDestinationAccount(),
+                tr.getStatus());
+    }
+
+    private boolean isEmpty(List<?> list) {
+        return list == null || list.isEmpty();
+    }
 }
 

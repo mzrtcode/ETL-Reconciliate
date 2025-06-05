@@ -4,6 +4,7 @@ package co.com.itau.dto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+
 public class ReconciliationBatchResult {
 
     private String swiftId;
@@ -78,4 +79,6 @@ public class ReconciliationBatchResult {
     public void setStatus(String status) {
         this.status = status;
     }
+
+
 }
