@@ -20,6 +20,7 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -94,10 +95,7 @@ public class ReconcileMessagesTasklet implements Tasklet {
 
         BpBatchDTO selectedBatch = hasBatches ? batches.get(0) : new BpBatchDTO();
 
-        // Calcular si todas las transacciones están OK
         boolean allTransactionsOk = trxResults.stream().allMatch(t -> "OK".equals(t.getStatus()));
-
-        // Validar monto
         boolean amountMatches = Objects.equals(message.getAmount(), selectedBatch.getTotalAmount());
 
         if (!hasBatches) {
@@ -121,82 +119,76 @@ public class ReconcileMessagesTasklet implements Tasklet {
         result.setAmountJpat(selectedBatch.getTotalAmount());
         result.setStatus(status);
 
-
         return result;
     }
 
     private List<ReconciliationTransactionResult> conciliarTransacciones(AsMonitoringMessageDTO message, List<BpBatchDTO> batches) {
         List<ReconciliationTransactionResult> results = new ArrayList<>();
-
         List<AsMonitoringPaymentDTO> swiftPayments = Optional.ofNullable(message.getPayments()).orElse(Collections.emptyList());
-        List<BpBatchTransactionDTO> jpatTransactions = batches.isEmpty() || batches.getFirst().getTransactions() == null
-                ? Collections.emptyList()
-                : batches.getFirst().getTransactions();
 
-        Set<BpBatchTransactionDTO> matchedTransactions = new HashSet<>();
+        List<BpBatchTransactionDTO> allJpatTransactions = batches.stream()
+                .flatMap(b -> Optional.ofNullable(b.getTransactions()).orElse(Collections.emptyList()).stream())
+                .collect(Collectors.toList());
+
+        Map<BpBatchTransactionDTO, Boolean> usedJpatTransactions = new HashMap<>();
+        allJpatTransactions.forEach(t -> usedJpatTransactions.put(t, false));
 
         for (AsMonitoringPaymentDTO payment : swiftPayments) {
-            List<BpBatchTransactionDTO> referenceMatches = jpatTransactions.stream()
+            List<BpBatchTransactionDTO> matches = allJpatTransactions.stream()
                     .filter(t -> Objects.equals(t.getBtrReference(), payment.getReference()))
                     .filter(t -> Objects.equals(t.getBtrSourceAccount(), payment.getPayerAccount()))
                     .filter(t -> Objects.equals(t.getBtrDestAccount(), payment.getBeneficiaryAccount()))
-                    .toList();
-
-            List<BpBatchTransactionDTO> exactMatches = referenceMatches.stream()
                     .filter(t -> t.getBtrAmount().compareTo(payment.getAmount()) == 0)
-                    .toList();
+                    .collect(Collectors.toList());
 
-            ReconciliationTransactionResult result = new ReconciliationTransactionResult();
-            result.setSwiftId(message.getMessageId());
-            result.setSwiftReference(payment.getReference());
-            result.setSwiftAmount(payment.getAmount());
-            result.setSwiftSourceAccount(payment.getPayerAccount());
-            result.setSwiftDestinationAccount(payment.getBeneficiaryAccount());
+            int matchIndex = 1;
+            for (BpBatchTransactionDTO match : matches) {
+                ReconciliationTransactionResult result = new ReconciliationTransactionResult();
+                result.setSwiftId(message.getMessageId());
+                result.setSwiftReference(payment.getReference());
+                result.setSwiftAmount(payment.getAmount());
+                result.setSwiftSourceAccount(payment.getPayerAccount());
+                result.setSwiftDestinationAccount(payment.getBeneficiaryAccount());
 
-            if (exactMatches.size() == 1) {
-                BpBatchTransactionDTO matched = exactMatches.get(0);
-                result.setJpatReference(matched.getBtrReference());
-                result.setJpatAmount(matched.getBtrAmount());
-                result.setJpatSourceAccount(matched.getBtrSourceAccount());
-                result.setJpatDestinationAccount(matched.getBtrDestAccount());
-                result.setStatus("OK");
-                matchedTransactions.add(matched);
-            } else if (exactMatches.size() > 1) {
-                result.setStatus("DUPLICADO JPAT");
-            } else if (!referenceMatches.isEmpty()) {
-                result.setStatus("DIFERENCIA EN VALOR");
-            } else {
-                result.setStatus("NO EN JPAT");
+                result.setJpatReference(match.getBtrReference());
+                result.setJpatAmount(match.getBtrAmount());
+                result.setJpatSourceAccount(match.getBtrSourceAccount());
+                result.setJpatDestinationAccount(match.getBtrDestAccount());
+
+                result.setStatus(matches.size() > 1 ? "TRANSACCIÓN DUPLICADA JPAT " + matchIndex : "OK");
+                matchIndex++;
+                usedJpatTransactions.put(match, true);
+                results.add(result);
             }
 
-            results.add(result);
+            if (matches.isEmpty()) {
+                ReconciliationTransactionResult result = new ReconciliationTransactionResult();
+                result.setSwiftId(message.getMessageId());
+                result.setSwiftReference(payment.getReference());
+                result.setSwiftAmount(payment.getAmount());
+                result.setSwiftSourceAccount(payment.getPayerAccount());
+                result.setSwiftDestinationAccount(payment.getBeneficiaryAccount());
+                result.setStatus("NO EN JPAT");
+                results.add(result);
+            }
         }
 
-        // Agregar las transacciones JPAT no usadas
-        for (BpBatchTransactionDTO trx : jpatTransactions) {
-            if (!matchedTransactions.contains(trx)) {
+        for (Map.Entry<BpBatchTransactionDTO, Boolean> entry : usedJpatTransactions.entrySet()) {
+            if (!entry.getValue()) {
                 ReconciliationTransactionResult extra = new ReconciliationTransactionResult();
+                BpBatchTransactionDTO trx = entry.getKey();
                 extra.setSwiftId(message.getMessageId());
                 extra.setJpatReference(trx.getBtrReference());
                 extra.setJpatAmount(trx.getBtrAmount());
                 extra.setJpatSourceAccount(trx.getBtrSourceAccount());
                 extra.setJpatDestinationAccount(trx.getBtrDestAccount());
                 extra.setStatus("NO EN SWIFT");
-
-                // Campos de SWIFT vacíos
-                extra.setSwiftReference(null);
-                extra.setSwiftAmount(null);
-                extra.setSwiftSourceAccount(null);
-                extra.setSwiftDestinationAccount(null);
-
                 results.add(extra);
             }
         }
 
         return results;
     }
-
-
 
 }
 

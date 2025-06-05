@@ -35,7 +35,11 @@ public class BpBatchDAOImpl implements BpBatchDAO {
             SELECT 
                 b.UUID, 
                 b.BATNAME,
-                SUM(t_all.BTRAMOUNT) AS TOTALAMOUNT
+                (
+                        SELECT SUM(t.BTRAMOUNT)
+                        FROM BP_BATCHTRANSACTION t
+                        WHERE t.BATCH = b.UUID
+                    ) AS TOTALAMOUNT
             FROM BP_BATCHTRANSACTION t_ref
             INNER JOIN BP_BATCH b ON t_ref.BATCH = b.UUID
             INNER JOIN BP_BATCHTRANSACTION t_all ON t_all.BATCH = b.UUID
