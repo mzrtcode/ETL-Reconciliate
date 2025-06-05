@@ -1,14 +1,13 @@
-package co.com.itau.batch;
+package co.com.itau.service;
 
-import co.com.itau.batch.dto.ReconciliationBatchResult;
-import co.com.itau.batch.dto.ReconciliationTransactionResult;
+
+import co.com.itau.dto.ReconciliationBatchResult;
+import co.com.itau.dto.ReconciliationTransactionResult;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.stereotype.Component;
-
 import java.awt.Color;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -18,8 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-@Component
-public class TestBorrar {
+public class ExcelReportService {
 
     private static final String SHEET_LOTES = "LOTES";
     private static final String SHEET_DETALLE = "DETALLE";
@@ -54,7 +52,7 @@ public class TestBorrar {
 
             // Crear estilo para encabezados
             CellStyle headerStyle = workbook.createCellStyle();
-            Font font = workbook.createFont();
+            org.apache.poi.ss.usermodel.Font font = workbook.createFont();
             font.setBold(true);
             headerStyle.setFont(font);
 

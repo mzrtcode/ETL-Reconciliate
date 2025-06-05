@@ -1,10 +1,10 @@
 package co.com.itau.batch.tasklet;
 
-import co.com.itau.batch.TestBorrar;
-import co.com.itau.batch.dto.ReconciliationBatchResult;
-import co.com.itau.batch.dto.ReconciliationTransactionResult;
+import co.com.itau.dto.ReconciliationBatchResult;
+import co.com.itau.dto.ReconciliationTransactionResult;
 import co.com.itau.jpat.dto.BpBatchDTO;
 import co.com.itau.jpat.dto.BpBatchTransactionDTO;
+import co.com.itau.service.ExcelReportService;
 import co.com.itau.swift.dto.AsMonitoringMessageDTO;
 import co.com.itau.swift.dto.AsMonitoringPaymentDTO;
 import co.com.itau.utils.ChunkContextUtil;
@@ -79,7 +79,7 @@ public class ReconcileMessagesTasklet implements Tasklet {
             }
         }
 
-        TestBorrar.generarExcel(batchResultsExcel, transactionResultsExcel);
+        ExcelReportService.generarExcel(batchResultsExcel, transactionResultsExcel);
 
         log.info("--------------> FINISHED MESSAGE RECONCILIATION SWIFT vs JPAT <--------------");
         return RepeatStatus.FINISHED;
