@@ -1,32 +1,27 @@
-package co.com.itau.batch.tasklet;
+package co.com.itau.service;
 
+import co.com.itau.batch.tasklet.ReconcileMessagesTasklet;
 import co.com.itau.dto.ReconciliationBatchResult;
 import co.com.itau.dto.ReconciliationTransactionResult;
 import co.com.itau.jpat.dto.BpBatchDTO;
 import co.com.itau.jpat.dto.BpBatchTransactionDTO;
-import co.com.itau.service.ExcelReportService;
 import co.com.itau.swift.dto.AsMonitoringMessageDTO;
 import co.com.itau.swift.dto.AsMonitoringPaymentDTO;
 import co.com.itau.utils.ChunkContextUtil;
 import co.com.itau.utils.Constants;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
-import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
-import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Component
-@RequiredArgsConstructor
-public class ReconcileMessagesTasklet implements Tasklet {
+public class ReconciliationService {
 
-    private static final Logger log = LoggerFactory.getLogger(ReconcileMessagesTasklet.class);
+    private static final Logger log = LoggerFactory.getLogger(ReconciliationService.class);
 
     public static final String STATUS_NOT_IN_SWIFT = "NO EN SWIFT";
     public static final String STATUS_NOT_IN_JPAT = "NO EN JPAT";
@@ -37,29 +32,8 @@ public class ReconcileMessagesTasklet implements Tasklet {
     public static final String STATUS_VALUE_MISMATCH = "DIFERENCIA EN VALOR";
     public static final String STATUS_TRANSACTIONS_WITH_ERROR = "TRANSACCIONES CON ERROR";
 
-    @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        log.info("--------------> STARTED MESSAGE RECONCILIATION SWIFT vs JPAT <--------------");
 
-        List<AsMonitoringMessageDTO> messages = ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_MESSAGES);
-        Map<String, List<BpBatchDTO>> batchesMap = ChunkContextUtil.getChunkContext(chunkContext, Constants.CONTEXT_KEY_BATCH_MAP);
-
-        if (isEmpty(messages)) {
-            log.warn("No messages found to reconcile.");
-            return RepeatStatus.FINISHED;
-        }
-
-        List<ReconciliationBatchResult> batchResults = new ArrayList<>();
-        List<ReconciliationTransactionResult> transactionResults = new ArrayList<>();
-
-        messages.forEach(message -> processMessage(message, batchesMap, batchResults, transactionResults));
-
-        ExcelReportService.generarExcel(batchResults, transactionResults);
-        log.info("--------------> FINISHED MESSAGE RECONCILIATION SWIFT vs JPAT <--------------");
-        return RepeatStatus.FINISHED;
-    }
-
-    private void processMessage(AsMonitoringMessageDTO message, Map<String, List<BpBatchDTO>> batchesMap,
+    public void processMessage(AsMonitoringMessageDTO message, Map<String, List<BpBatchDTO>> batchesMap,
                                 List<ReconciliationBatchResult> batchResults, List<ReconciliationTransactionResult> transactionResults) {
         List<BpBatchDTO> batches = batchesMap.getOrDefault(message.getMessageId(), Collections.emptyList());
         if (batches.isEmpty()) {
