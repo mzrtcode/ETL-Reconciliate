@@ -11,6 +11,9 @@ import jakarta.mail.util.ByteArrayDataSource;
 import jakarta.activation.DataSource;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+
 
 @Service
 public class EmailService {
@@ -23,8 +26,9 @@ public class EmailService {
         this.javaMailSender = javaMailSender;
     }
 
+
     @Async
-    public void sendEmail(String from, String to, String subject, byte[] attachmentBytes) {
+    public void sendEmail(String from, String to, String subject, String content, byte[] attatchment, String fileName, String fileType) {
         try {
             MimeMessage mimeMessage = javaMailSender.createMimeMessage();
 
@@ -34,17 +38,14 @@ public class EmailService {
             helper.setFrom(from);
             helper.setTo(to);
             helper.setSubject(subject);
+            helper.setText(content, false); // true = HTML
 
-            String htmlContent = "<h1>This is a test from Spring Boot</h1>"
-                    + "<p>This is a test from Spring Boot</p>";
-            helper.setText(htmlContent, true); // true = HTML
-
-            if (attachmentBytes != null && attachmentBytes.length > 0) {
+            if (attatchment != null && attatchment.length > 0) {
                 DataSource dataSource = new ByteArrayDataSource(
-                        attachmentBytes,
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        attatchment,
+                        fileType
                 );
-                helper.addAttachment("archivo.xlsx", dataSource);
+                helper.addAttachment(fileName, dataSource);
             }
 
             javaMailSender.send(mimeMessage);
@@ -52,10 +53,11 @@ public class EmailService {
 
         } catch (MessagingException ex) {
             logger.error("Error sending email to {}", to, ex);
-            // aquí puedes lanzar RuntimeException si quieres propagar
         } catch (Exception ex) {
-            logger.error("Unexpected error sending email to {}", to, ex);
+            logger.error("Error sending email to {}", to, ex);
         }
     }
+
+
 
 }

@@ -1,20 +1,21 @@
 package co.com.itau.dto;
 
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 
-public class ReconciliationBatchResult {
+public class ReconciliationBatchResult implements Serializable {
 
-    private String swiftId;
-    private String customerNit;
-    private String fileName;
+    private String swiftId = "";
+    private String customerNit = "";
+    private String fileName = "";
     private LocalDate loadingTime;
     private LocalDate applicationDate;
-    private BigDecimal amountSwift;
-    private BigDecimal amountJpat;
-    private String status;
+    private BigDecimal amountSwift = BigDecimal.ZERO;
+    private BigDecimal amountJpat = BigDecimal.ZERO;
+    private String status = "";
 
     public String getSwiftId() {
         return swiftId;

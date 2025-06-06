@@ -3,6 +3,7 @@ package co.com.itau.config;
 import co.com.itau.batch.tasklet.LoadJpatBatchesTasklet;
 import co.com.itau.batch.tasklet.LoadSwiftMessagesTasklet;
 import co.com.itau.batch.tasklet.ReconcileMessagesTasklet;
+import co.com.itau.batch.tasklet.ReportAndEmailTasklet;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -25,6 +26,7 @@ public class BatchConfig {
     private final ReconcileMessagesTasklet reconcileMessagesTasklet;
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
+    private final ReportAndEmailTasklet reportAndEmailTasklet;
 
     @Bean
     public Step loadSwiftMessagesStep(){
@@ -48,12 +50,20 @@ public class BatchConfig {
     }
 
     @Bean
+    public Step reportAndEmailStep(){
+        return new StepBuilder("reportAndEmailStep", jobRepository)
+                .tasklet(reportAndEmailTasklet, transactionManager)
+                .build();
+    }
+
+    @Bean
     public Job reconciliateJob(){
         return new JobBuilder("ReconciliateSwiftJpat", jobRepository)
                 .incrementer(new RunIdIncrementer())
                 .start(loadSwiftMessagesStep())
                 .next(loadJpatBatchesStep())
                 .next(reconciliateMessagesStep())
+                .next(reportAndEmailStep())
                 .build();
     }
 

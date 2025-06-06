@@ -31,7 +31,7 @@ public class LoadSwiftMessagesTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
 
-        log.info("--------------> STARTED LOADING SWIFT MESSAGES <--------------");
+        log.info("--------------> STARTED LOADING SWIFT MESSAGES STEP <--------------");
 
 
         LocalDateTime currentTime = LocalDateTime.of(2025, 1, 23, 0, 0);
@@ -55,7 +55,7 @@ public class LoadSwiftMessagesTasklet implements Tasklet {
         ChunkContextUtil.setChunkContext(chunkContext , Constants.CONTEXT_KEY_MESSAGES, swiftMessages);
 
 
-        log.info("--------------> FINISHED LOADING SWIFT MESSAGES <--------------");
+        log.info("--------------> FINISHED LOADING SWIFT MESSAGES STEP <--------------");
         return RepeatStatus.FINISHED;
     }
 }

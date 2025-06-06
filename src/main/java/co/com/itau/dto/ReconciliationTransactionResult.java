@@ -1,23 +1,24 @@
 package co.com.itau.dto;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 
 
-public class ReconciliationTransactionResult {
+public class ReconciliationTransactionResult implements Serializable {
 
 
-    private String swiftId;
-    private String swiftReference;
-    private BigDecimal swiftAmount;
-    private String swiftSourceAccount;
-    private String swiftDestinationAccount;
+    private String swiftId = "";
+    private String swiftReference = "";
+    private BigDecimal swiftAmount = BigDecimal.ZERO;
+    private String swiftSourceAccount = "";
+    private String swiftDestinationAccount = "";
 
-    private String jpatReference;
-    private BigDecimal jpatAmount;
-    private String jpatSourceAccount;
-    private String jpatDestinationAccount;
+    private String jpatReference = "";
+    private BigDecimal jpatAmount = BigDecimal.ZERO;
+    private String jpatSourceAccount = "";
+    private String jpatDestinationAccount = "";
 
-    private String status;
+    private String status = "";
 
     public String getSwiftId() {
         return swiftId;

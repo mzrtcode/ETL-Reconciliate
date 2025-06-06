@@ -8,22 +8,24 @@ import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
 import java.awt.Color;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
+@Service
 public class ExcelReportService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExcelReportService.class);
 
     private static final String SHEET_LOTES = "LOTES";
     private static final String SHEET_DETALLE = "DETALLE";
-    private static final String FILE_NAME = "reconciliation_report.xlsx";
-    private static final String RESOURCE_DIR = "src/main/resources";
-    private static final int FILTER_ICON_MARGIN = 1000; // Margen adicional para el icono de filtro (en unidades de 1/256 de carácter)
+
 
     private static final String[] HEADERS_LOTES = {
             "ID Principal", "Cliente", "Nombre Archivo", "Fecha de Cargue",
@@ -36,25 +38,28 @@ public class ExcelReportService {
             "Cuenta Origen JPAT", "Cuenta Destino JPAT", "Estado"
     };
 
-    public static void generarExcel(List<ReconciliationBatchResult> lotes, List<ReconciliationTransactionResult> transacciones) {
+
+    private static final Color STATUS_OK_COLOR = new Color(204, 255, 204);    // Verde
+    private static final Color STATUS_NOT_OK_COLOR = new Color(255, 204, 204); // Rojo
+
+    private static final String STATUS_OK = "OK";
+
+    private static final String DEFAULT_STRING = "";
+    private static final double DEFAULT_DOUBLE = 0.0;
+    private static final int FIRST_ROW = 0;
+    private static final int START_ROW_DATA = 1;
+    private static final int FILTER_ICON_MARGIN = 1000;
+
+    public byte[] generarExcel(List<ReconciliationBatchResult> lotes, List<ReconciliationTransactionResult> transacciones) {
+
+
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             XSSFSheet sheetLotes = workbook.createSheet(SHEET_LOTES);
             XSSFSheet sheetDetalle = workbook.createSheet(SHEET_DETALLE);
 
-            // Crear estilos para las celdas de estado
-            CellStyle styleOk = workbook.createCellStyle();
-            styleOk.setFillForegroundColor(new XSSFColor(new Color(204, 255, 204), null)); // #CCFFCC
-            styleOk.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-
-            CellStyle styleNotOk = workbook.createCellStyle();
-            styleNotOk.setFillForegroundColor(new XSSFColor(new Color(255, 204, 204), null)); // #FFCCCC
-            styleNotOk.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-
-            // Crear estilo para encabezados
-            CellStyle headerStyle = workbook.createCellStyle();
-            org.apache.poi.ss.usermodel.Font font = workbook.createFont();
-            font.setBold(true);
-            headerStyle.setFont(font);
+            CellStyle styleOk = crearCeldaEstado(workbook, STATUS_OK_COLOR);
+            CellStyle styleNotOk = crearCeldaEstado(workbook, STATUS_NOT_OK_COLOR);
+            CellStyle headerStyle = createCeldaCabecera(workbook);
 
             crearEncabezado(sheetLotes, HEADERS_LOTES, headerStyle);
             crearEncabezado(sheetDetalle, HEADERS_DETALLE, headerStyle);
@@ -62,86 +67,99 @@ public class ExcelReportService {
             llenarLotes(sheetLotes, lotes, styleOk, styleNotOk);
             llenarTransacciones(sheetDetalle, transacciones, styleOk, styleNotOk);
 
-            // Ajustar ancho de columnas después de llenar datos
             ajustarAnchoColumnas(sheetLotes, HEADERS_LOTES.length);
             ajustarAnchoColumnas(sheetDetalle, HEADERS_DETALLE.length);
 
-            Path dir = Paths.get(RESOURCE_DIR);
-            if (!Files.exists(dir)) {
-                Files.createDirectories(dir);
-            }
-
-            Path filePath = dir.resolve(FILE_NAME);
-            try (FileOutputStream out = new FileOutputStream(filePath.toFile())) {
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 workbook.write(out);
-                System.out.println("Archivo guardado en: " + filePath.toAbsolutePath());
+                log.info("Reporte Excel generado exitosamente");
+                return out.toByteArray();
             }
         } catch (IOException e) {
-            System.err.println("Error al guardar el archivo: " + e.getMessage());
+            log.error("Error al generar el reporte Excel", e);
+            return null;
         }
     }
 
-    private static void crearEncabezado(Sheet sheet, String[] encabezados, CellStyle headerStyle) {
-        Row headerRow = sheet.createRow(0);
+    private CellStyle crearCeldaEstado(XSSFWorkbook workbook, Color color) {
+        CellStyle style = workbook.createCellStyle();
+        style.setFillForegroundColor(new XSSFColor(color, null));
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        return style;
+    }
+
+    private CellStyle createCeldaCabecera(XSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        return style;
+    }
+
+    private void crearEncabezado(Sheet sheet, String[] encabezados, CellStyle headerStyle) {
+        Row headerRow = sheet.createRow(FIRST_ROW);
         for (int i = 0; i < encabezados.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(encabezados[i]);
             cell.setCellStyle(headerStyle);
         }
-        // Habilitar filtro en los encabezados
-        sheet.setAutoFilter(new CellRangeAddress(0, 0, 0, encabezados.length - 1));
+        sheet.setAutoFilter(new CellRangeAddress(FIRST_ROW, FIRST_ROW, 0, encabezados.length - 1));
     }
 
-    private static void llenarLotes(Sheet sheet, List<ReconciliationBatchResult> lotes, CellStyle styleOk, CellStyle styleNotOk) {
-        int rowNum = 1;
+    private void llenarLotes(Sheet sheet, List<ReconciliationBatchResult> lotes, CellStyle styleOk, CellStyle styleNotOk) {
+        if (lotes == null) return;
+
+        int rowNum = START_ROW_DATA;
         for (ReconciliationBatchResult lote : lotes) {
             Row row = sheet.createRow(rowNum++);
-            row.createCell(0).setCellValue(safe(lote.getSwiftId()));
-            row.createCell(1).setCellValue(safe(lote.getCustomerNit()));
-            row.createCell(2).setCellValue(safe(lote.getFileName()));
-            row.createCell(3).setCellValue(safe(lote.getLoadingTime()));
-            row.createCell(4).setCellValue(safe(lote.getApplicationDate()));
-            row.createCell(5).setCellValue(safe(lote.getAmountSwift()));
-            row.createCell(6).setCellValue(safe(lote.getAmountJpat()));
+            row.createCell(0).setCellValue(valorSeguro(lote.getSwiftId()));
+            row.createCell(1).setCellValue(valorSeguro(lote.getCustomerNit()));
+            row.createCell(2).setCellValue(valorSeguro(lote.getFileName()));
+            row.createCell(3).setCellValue(valorSeguro(lote.getLoadingTime()));
+            row.createCell(4).setCellValue(valorSeguro(lote.getApplicationDate()));
+            row.createCell(5).setCellValue(valorSeguro(lote.getAmountSwift()));
+            row.createCell(6).setCellValue(valorSeguro(lote.getAmountJpat()));
             Cell statusCell = row.createCell(7);
-            statusCell.setCellValue(safe(lote.getStatus()));
-            statusCell.setCellStyle("OK".equals(safe(lote.getStatus())) ? styleOk : styleNotOk);
+            statusCell.setCellValue(valorSeguro(lote.getStatus()));
+            statusCell.setCellStyle(STATUS_OK.equals(valorSeguro(lote.getStatus())) ? styleOk : styleNotOk);
         }
     }
 
-    private static void llenarTransacciones(Sheet sheet, List<ReconciliationTransactionResult> transacciones, CellStyle styleOk, CellStyle styleNotOk) {
-        int rowNum = 1;
+    private void llenarTransacciones(Sheet sheet, List<ReconciliationTransactionResult> transacciones, CellStyle styleOk, CellStyle styleNotOk) {
+        if (transacciones == null) return;
+
+        int rowNum = START_ROW_DATA;
         for (ReconciliationTransactionResult t : transacciones) {
             Row row = sheet.createRow(rowNum++);
-            row.createCell(0).setCellValue(safe(t.getSwiftId()));
-            row.createCell(1).setCellValue(safe(t.getSwiftReference()));
-            row.createCell(2).setCellValue(safe(t.getSwiftAmount()));
-            row.createCell(3).setCellValue(safe(t.getSwiftSourceAccount()));
-            row.createCell(4).setCellValue(safe(t.getSwiftDestinationAccount()));
-            row.createCell(5).setCellValue(safe(t.getJpatReference()));
-            row.createCell(6).setCellValue(safe(t.getJpatAmount()));
-            row.createCell(7).setCellValue(safe(t.getJpatSourceAccount()));
-            row.createCell(8).setCellValue(safe(t.getJpatDestinationAccount()));
+            row.createCell(0).setCellValue(valorSeguro(t.getSwiftId()));
+            row.createCell(1).setCellValue(valorSeguro(t.getSwiftReference()));
+            row.createCell(2).setCellValue(valorSeguro(t.getSwiftAmount()));
+            row.createCell(3).setCellValue(valorSeguro(t.getSwiftSourceAccount()));
+            row.createCell(4).setCellValue(valorSeguro(t.getSwiftDestinationAccount()));
+            row.createCell(5).setCellValue(valorSeguro(t.getJpatReference()));
+            row.createCell(6).setCellValue(valorSeguro(t.getJpatAmount()));
+            row.createCell(7).setCellValue(valorSeguro(t.getJpatSourceAccount()));
+            row.createCell(8).setCellValue(valorSeguro(t.getJpatDestinationAccount()));
             Cell statusCell = row.createCell(9);
-            statusCell.setCellValue(safe(t.getStatus()));
-            statusCell.setCellStyle("OK".equals(safe(t.getStatus())) ? styleOk : styleNotOk);
+            statusCell.setCellValue(valorSeguro(t.getStatus()));
+            statusCell.setCellStyle(STATUS_OK.equals(valorSeguro(t.getStatus())) ? styleOk : styleNotOk);
         }
     }
 
-    private static void ajustarAnchoColumnas(Sheet sheet, int numColumnas) {
+    private void ajustarAnchoColumnas(Sheet sheet, int numColumnas) {
         for (int i = 0; i < numColumnas; i++) {
-            sheet.autoSizeColumn(i); // Ajustar al contenido
-            // Añadir margen adicional para el icono de filtro
+            sheet.autoSizeColumn(i);
             int currentWidth = sheet.getColumnWidth(i);
             sheet.setColumnWidth(i, currentWidth + FILTER_ICON_MARGIN);
         }
     }
 
-    private static String safe(Object value) {
-        return value == null ? "" : value.toString();
+    private String valorSeguro(Object value) {
+        return value == null ? DEFAULT_STRING : value.toString();
     }
 
-    private static double safe(BigDecimal value) {
-        return value == null ? 0.0 : value.doubleValue();
+    private double valorSeguro(BigDecimal value) {
+        return value == null ? DEFAULT_DOUBLE : value.doubleValue();
     }
 }
+

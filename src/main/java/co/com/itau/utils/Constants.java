@@ -43,6 +43,7 @@ public class Constants {
 
     public static final String CONTEXT_KEY_MESSAGES = "swiftMessages";
     public static final String CONTEXT_KEY_BATCH_MAP = "batchMap";
+    public static final String CONTEXT_KEY_RECONCILIATION_RESULT= "reconciliationResult";
 
 
 
